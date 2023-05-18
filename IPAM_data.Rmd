@@ -1,0 +1,12 @@
+---
+title: "IPAM_data_processing"
+author: "Shayle Matsuda"
+date: "5/18/2023"
+output: html_document
+---
+
+IPAM files for GT23 heat stress test on FL and HI corals. Treatments include HI-only, FL-only, HI+FL, and HI+FL+antibiotics
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
