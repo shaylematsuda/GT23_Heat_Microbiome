@@ -10,3 +10,104 @@ IPAM files for GT23 heat stress test on FL and HI corals. Treatments include HI-
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+
+# Load libraries and custom functions
+```{r}
+library(broom)
+library(lubridate)
+library(tidyverse)
+
+# Create custom ggplot theme
+theme_custom <- function() {
+  theme_bw(base_size = 10, base_family = "Arial") %+replace%
+    theme(
+      panel.grid.major = element_blank(), 
+      panel.grid.minor = element_blank(), 
+      panel.background = element_blank(),
+      panel.border = element_rect(color = "black", fill = NA),
+      legend.background = element_rect(fill = NA, colour = NA),
+      axis.title = element_text(size = 10),
+      axis.text = element_text(size = 7)
+    )
+}
+
+# Function to pivot IPAM data to long form with column for AOI
+ipam_convert <- function(data) {
+  data %>% select_if(~ !any(is.na(.))) %>%
+  pivot_longer(cols = starts_with("f") | starts_with("y")) %>%
+  separate(name, into = c("var", "aoi"), sep = "(?<=[A-Za-z_])(?=[0-9])")
+}
+```
+
+
+### Import rack, temperature, and coral position information
+```{r}
+# Import PAM metadata (positions of corals on racks for each date)
+rack_pos <- read_csv("data/PAM_metadata.csv") %>%
+  janitor::clean_names() %>%
+  mutate(date = as_date(as.character(date), format = "%m/%d/%y"))
+
+# Import frag metadata (species, treatment info for each frag)
+#
+
+# Join metadata
+md <- rack_pos # %>%  # need frag metadata
+```
+
+### Import I-PAM data
+```{r}
+# Import PAM data
+# List PAM files
+pamfiles <- list.files(path = "data", pattern = "^[0-9]*.csv", recursive = TRUE, full.names = TRUE)
+
+# Import data from each file
+pam1 <- pamfiles %>%
+  map_dfr(read_delim, delim = ";", .id = "file_id") %>%
+  janitor::clean_names() %>%
+  mutate(file_id = basename(pamfiles[as.numeric(file_id)]),
+         date = as_date(date, format = "%d.%m.%y"))
+
+# # For files that have multiple sat pulses -- keep the last one only
+pam2 <- pam1 %>%
+  group_by(file_id, date) %>%
+  filter(no == max(no)) %>%
+  ungroup()
+
+# For each source file, convert to long form data with F, FM, and YII for each AOI
+pam3 <- pam2 %>%
+  nest(-file_id, -date) %>%
+  mutate(data2 = map(data, ipam_convert)) %>%
+  unnest(data2) %>%
+  group_by(file_id, date) %>%
+  select(file_id, date, time, aoi, var, value)
+
+pam4 <- pam3 %>%
+  separate(file_id, into = c("rack_number", "junk")) %>%
+  mutate(rack_number = as.numeric(rack_number))
+  
+
+# Join PAM data with rack order information (which PAM file corresponds to which rack of corals)
+pam5 <- pam4 %>%
+  group_by(rack_number, date) %>%
+  mutate(pos_number = ceiling(as.numeric(aoi)/2)) %>%
+  ungroup()
+
+pam <- left_join(pam5, md, by = c("date", "rack_number", "pos_number"))
+```
+
+### Plot figure for classic results
+```{r}
+# pam <- pam %>%
+#   separate(frag_id, into = c("genotype", "frag")) 
+
+fvfm <- filter(pam, var == "y_ii_")
+
+
+ggplot(fvfm, aes(x = date, y = value)) +
+  geom_violin() +
+  geom_jitter(aes(color = factor(tank_number)))
+
+
+
+
+```
