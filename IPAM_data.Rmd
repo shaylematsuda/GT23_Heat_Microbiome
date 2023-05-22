@@ -110,13 +110,15 @@ pam <- left_join(pam6, md, by = c("date", "rack_number", "pos_number"))
 # pam <- pam %>%
 #   separate(frag_id, into = c("genotype", "frag")) 
 
-fvfm <- filter(pam, var == "y_ii_")
+fvfm <- filter(pam, var == "y_ii_") %>%
+  mutate(species = factor(species, levels = c("Ssid", "Acer", "Mcap", "Pcomp")))
 
 ggplot(fvfm, aes(x = date, y = value, group = frag_id)) +
-  #geom_boxplot() +
-  geom_point(aes(color = species)) +
-  geom_line() +
+  geom_point() +
+  geom_line(lwd = 0.25) +
   facet_grid(tank_number ~ species)
+
+
 
 fvfmsumm <- fvfm %>%
   group_by(tank_number, species, date) %>%
@@ -125,7 +127,7 @@ fvfmsumm <- fvfm %>%
 ggplot(fvfmsumm, aes(x = date, y = meanfvfm, group = tank_number, color = factor(tank_number))) +
   geom_point() +
   geom_line() +
-  facet_wrap(~species)
+  facet_wrap(~species, ncol = 5)
  
 
 ```
