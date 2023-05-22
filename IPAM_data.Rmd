@@ -43,22 +43,25 @@ ipam_convert <- function(data) {
 ### Import rack, temperature, and coral position information
 ```{r}
 # Import PAM metadata (positions of corals on racks for each date)
-rack_pos <- read_csv("data/PAM_metadata.csv") %>%
+rack_pos <- readxl::read_xlsx("data/PAM_metadata.xlsx") %>%
   janitor::clean_names() %>%
-  mutate(date = as_date(as.character(date), format = "%m/%d/%y"))
+  mutate(date = as_date(as.character(date)))#, format = "%m/%d/%y"))
 
 # Import frag metadata (species, treatment info for each frag)
-#
+frag_md <- readxl::read_xlsx("GT23_metadata.xlsx") %>%
+  janitor::clean_names()
+frag_md
 
 # Join metadata
-md <- rack_pos # %>%  # need frag metadata
+md <- rack_pos %>% 
+  left_join(frag_md, by = "frag_id")
 ```
 
 ### Import I-PAM data
 ```{r}
 # Import PAM data
 # List PAM files
-pamfiles <- list.files(path = "data", pattern = "^[0-9]*.csv", recursive = TRUE, full.names = TRUE)
+pamfiles <- list.files(path = "data", pattern = "^[0-9].*.csv", recursive = TRUE, full.names = TRUE)
 
 # Import data from each file
 pam1 <- pamfiles %>%
@@ -92,7 +95,14 @@ pam5 <- pam4 %>%
   mutate(pos_number = ceiling(as.numeric(aoi)/2)) %>%
   ungroup()
 
-pam <- left_join(pam5, md, by = c("date", "rack_number", "pos_number"))
+# Average PAM data between replicate AOIs per coral
+pam6 <- pam5 %>%
+  group_by(date, rack_number, pos_number, var) %>%
+  summarise(value = mean(value)) %>%
+  ungroup()
+
+# Join PAM data with metadata
+pam <- left_join(pam6, md, by = c("date", "rack_number", "pos_number"))
 ```
 
 ### Plot figure for classic results
@@ -100,14 +110,24 @@ pam <- left_join(pam5, md, by = c("date", "rack_number", "pos_number"))
 # pam <- pam %>%
 #   separate(frag_id, into = c("genotype", "frag")) 
 
-fvfm <- filter(pam, var == "y_ii_")
+fvfm <- filter(pam, var == "y_ii_") %>%
+  mutate(species = factor(species, levels = c("Ssid", "Acer", "Mcap", "Pcomp")))
+
+ggplot(fvfm, aes(x = date, y = value, group = frag_id)) +
+  geom_point() +
+  geom_line(lwd = 0.25) +
+  facet_grid(tank_number ~ species)
 
 
-ggplot(fvfm, aes(x = date, y = value)) +
-  geom_violin() +
-  geom_jitter(aes(color = factor(tank_number)))
 
+fvfmsumm <- fvfm %>%
+  group_by(tank_number, species, date) %>%
+  summarize(meanfvfm = mean(value))
 
-
+ggplot(fvfmsumm, aes(x = date, y = meanfvfm, group = tank_number, color = factor(tank_number))) +
+  geom_point() +
+  geom_line() +
+  facet_wrap(~species, ncol = 5)
+ 
 
 ```
